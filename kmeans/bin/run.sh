@@ -39,7 +39,7 @@ SSIZE=${SSIZE##*|}
 SSIZE=${SSIZE//,/}
 CSIZE=`dir_size $INPUT_CLUSTER`
 SIZE=$(($SSIZE+$CSIZE))
-OPTION="$COMPRESS_OPT -i ${INPUT_SAMPLE} -c ${INPUT_CLUSTER} -o ${OUTPUT_HDFS} -x ${MAX_ITERATION} -ow -cl -cd 0.5 -dm org.apache.mahout.common.distance.EuclideanDistanceMeasure -xm mapreduce"
+OPTION="$COMPRESS_OPT -i ${INPUT_SAMPLE} -c ${INPUT_CLUSTER} -o ${OUTPUT_HDFS} -x ${MAX_ITERATION} -ow -cl -cd 0.5 -dm org.apache.mahout.common.distance.EuclideanDistanceMeasure -xm mapreduce -mt true"
 START_TIME=`timestamp`
 
 # run bench

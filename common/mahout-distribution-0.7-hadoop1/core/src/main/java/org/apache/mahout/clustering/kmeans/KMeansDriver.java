@@ -72,6 +72,9 @@ public class KMeansDriver extends AbstractJob {
     addOption(DefaultOptionCreator.clusteringOption().create());
     addOption(DefaultOptionCreator.methodOption().create());
     addOption(DefaultOptionCreator.outlierThresholdOption().create());
+    //swm begin
+    addOption(DefaultOptionCreator.multithreadOption().create());
+    //swm end
     
     if (parseArguments(args) == null) {
       return -1;
@@ -101,12 +104,22 @@ public class KMeansDriver extends AbstractJob {
     if (getConf() == null) {
       setConf(new Configuration());
     }
+    // swm begin
+    boolean runMultiThreaded = false;
+    runMultiThreaded = Boolean.parseBoolean(getOption(DefaultOptionCreator.MULTI_THEADED_OPTION));
+    // swm end
     double clusterClassificationThreshold = 0.0;
     if (hasOption(DefaultOptionCreator.OUTLIER_THRESHOLD)) {
       clusterClassificationThreshold = Double.parseDouble(getOption(DefaultOptionCreator.OUTLIER_THRESHOLD));
     }
+    //swm begin: add one more argument
+    /*
     run(getConf(), input, clusters, output, measure, convergenceDelta, maxIterations, runClustering,
         clusterClassificationThreshold, runSequential);
+    */
+    run(getConf(), input, clusters, output, measure, convergenceDelta, maxIterations, runClustering,
+        clusterClassificationThreshold, runSequential, runMultiThreaded);
+    //swm end
     return 0;
   }
   
@@ -133,7 +146,8 @@ public class KMeansDriver extends AbstractJob {
    *          having pdf below this value will not be clustered.
    * @param runSequential
    *          if true execute sequential algorithm
-   */
+   */ 
+  
   public static void run(Configuration conf, Path input, Path clustersIn, Path output, DistanceMeasure measure,
       double convergenceDelta, int maxIterations, boolean runClustering, double clusterClassificationThreshold,
       boolean runSequential) throws IOException, InterruptedException, ClassNotFoundException {
@@ -153,6 +167,27 @@ public class KMeansDriver extends AbstractJob {
     }
   }
   
+  /**
+   * Added by swm
+   */
+  public static void run(Configuration conf, Path input, Path clustersIn, Path output, DistanceMeasure measure,
+      double convergenceDelta, int maxIterations, boolean runClustering, double clusterClassificationThreshold,
+      boolean runSequential, boolean runMultiThreaded) throws IOException, InterruptedException, ClassNotFoundException {
+    // iterate until the clusters converge
+    String delta = Double.toString(convergenceDelta);
+    if (log.isInfoEnabled()) {
+      log.info("Input: {} Clusters In: {} Out: {} Distance: {}", new Object[] {input, clustersIn, output,
+          measure.getClass().getName()});
+      log.info("convergence: {} max Iterations: {} num Reduce Tasks: {} Input Vectors: {}", new Object[] {
+          convergenceDelta, maxIterations, VectorWritable.class.getName()});
+    }
+    Path clustersOut = buildClusters(conf, input, clustersIn, output, measure, maxIterations, delta, runSequential);
+    if (runClustering) {
+      log.info("Clustering data");
+      // swm: add one more argument
+      clusterData(conf, input, clustersOut, output, measure, clusterClassificationThreshold, runSequential, runMultiThreaded);
+    }  
+  }
   /**
    * Iterate over the input vectors to produce clusters and, if requested, use the results of the final iteration to
    * cluster the input vectors.
@@ -260,5 +295,22 @@ public class KMeansDriver extends AbstractJob {
     ClusterClassificationDriver.run(input, output, new Path(output, CLUSTERED_POINTS_DIRECTORY),
         clusterClassificationThreshold, true, runSequential);
   }
+  
+  /**
+   * Added by swm
+   */
+  public static void clusterData(Configuration conf, Path input, Path clustersIn, Path output, DistanceMeasure measure,
+      double clusterClassificationThreshold, boolean runSequential, boolean runMultiThreaded ) throws IOException, InterruptedException,
+      ClassNotFoundException {
+    
+    if (log.isInfoEnabled()) {
+      log.info("Running Clustering");
+      log.info("Input: {} Clusters In: {} Out: {} Distance: {}", new Object[] {input, clustersIn, output, measure});
+    }
+    ClusterClassifier.writePolicy(new KMeansClusteringPolicy(), clustersIn);
+    ClusterClassificationDriver.run(input, output, new Path(output, CLUSTERED_POINTS_DIRECTORY),
+        clusterClassificationThreshold, true, runSequential, runMultiThreaded);
+  }
+  
   
 }

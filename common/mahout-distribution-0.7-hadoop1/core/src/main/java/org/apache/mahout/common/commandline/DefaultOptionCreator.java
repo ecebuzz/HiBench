@@ -41,6 +41,10 @@ public final class DefaultOptionCreator {
   
   public static final String MAX_ITERATIONS_OPTION = "maxIter";
   
+  //swm begin
+  public static final String MULTI_THEADED_OPTION = "multiThreaded";
+  //swm end
+  
   public static final String MAX_REDUCERS_OPTION = "maxRed";
   
   public static final String METHOD_OPTION = "method";
@@ -72,7 +76,7 @@ public final class DefaultOptionCreator {
   public static final String KERNEL_PROFILE_OPTION = "kernelProfile";
 
   public static final String ANALYZER_NAME_OPTION = "analyzerName";
-  
+    
   private DefaultOptionCreator() {}
   
   /**
@@ -265,6 +269,21 @@ public static DefaultOptionBuilder clusterFilterOption() {
             new ArgumentBuilder().withName(MAX_ITERATIONS_OPTION)
                 .withDefault("-1").withMinimum(1).withMaximum(1).create())
         .withDescription("The maximum number of iterations.");
+  }
+  
+  /**
+   * Added by swm
+   * Return a default command line option for whether running multithreaded clustering or not
+   */
+  public static DefaultOptionBuilder multithreadOption() {
+    return new DefaultOptionBuilder()
+        .withLongName(MULTI_THEADED_OPTION)
+        .withRequired(false)
+        .withShortName("mt")
+        .withArgument(
+            new ArgumentBuilder().withName(MULTI_THEADED_OPTION)
+                .withDefault("false").withMinimum(1).withMaximum(1).create())
+        .withDescription("Whether to run multithreaded clustering or not (default: false)");
   }
   
   /**

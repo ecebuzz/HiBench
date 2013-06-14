@@ -52,6 +52,9 @@ import org.apache.mahout.math.Vector;
 import org.apache.mahout.math.Vector.Element;
 import org.apache.mahout.math.VectorWritable;
 
+//swm begin
+import org.apache.hadoop.mapreduce.lib.map.MultithreadedMapper;
+//swm end
 /**
  * Classifies the vectors into different clusters found by the clustering
  * algorithm.
@@ -133,6 +136,19 @@ public class ClusterClassificationDriver extends AbstractJob {
       classifyClusterSeq(conf, input, clusteringOutputPath, output, clusterClassificationThreshold, emitMostLikely);
     } else {
       classifyClusterMR(conf, input, clusteringOutputPath, output, clusterClassificationThreshold, emitMostLikely);
+    }
+    
+  }
+  /**
+   * Added by swm
+   */
+  public static void run(Path input, Path clusteringOutputPath, Path output, Double clusterClassificationThreshold,
+      boolean emitMostLikely, boolean runSequential, boolean runMultiThreaded) throws IOException, InterruptedException, ClassNotFoundException {
+    Configuration conf = new Configuration();
+    if (runSequential) {
+      classifyClusterSeq(conf, input, clusteringOutputPath, output, clusterClassificationThreshold, emitMostLikely);
+    } else {
+      classifyClusterMR(conf, input, clusteringOutputPath, output, clusterClassificationThreshold, emitMostLikely, runMultiThreaded);
     }
     
   }
@@ -249,6 +265,51 @@ public class ClusterClassificationDriver extends AbstractJob {
     boolean isMaxPDFGreatherThanThreshold = pdfPerCluster.maxValue() >= clusterClassificationThreshold;
     return isMaxPDFGreatherThanThreshold;
   }
+
+  /*
+   * Added by swm to run kmeans with multiple threads
+   */
+  private static void classifyClusterMR(Configuration conf, Path input, Path clustersIn, Path output,
+      Double clusterClassificationThreshold, boolean emitMostLikely, boolean runMultiThreaded) throws IOException, InterruptedException,
+      ClassNotFoundException {
+  	
+    conf.setFloat(OUTLIER_REMOVAL_THRESHOLD, clusterClassificationThreshold.floatValue());
+    conf.setBoolean(EMIT_MOST_LIKELY, emitMostLikely);
+    conf.set(CLUSTERS_IN, clustersIn.toUri().toString());
+    
+    //conf.setBoolean("mapred.output.compress", true);
+    //conf.set("mapred.output.compression.type", "BLOCK");
+    //conf.set("mapred.output.compression.codec", "com.hadoop.compression.lzo.LzoCodec");
+
+    Job job = new Job(conf, "Multithreaded Cluster Classification Driver running over input: " + input);
+    job.setJarByClass(ClusterClassificationDriver.class);
+    
+    job.setInputFormatClass(SequenceFileInputFormat.class);
+    job.setOutputFormatClass(SequenceFileOutputFormat.class);
+
+    // swm begin: set multithreaded mapper
+    //job.setMapperClass(ClusterClassificationMapper.class);
+    if (runMultiThreaded) {
+	    job.setMapperClass(MultithreadedMapper.class);
+	    MultithreadedMapper.setMapperClass(job, ClusterClassificationMapper.class);
+	    MultithreadedMapper.setNumberOfThreads(job, 2);
+    } else {
+    	job.setMapperClass(ClusterClassificationMapper.class);
+    }
+    // swm end
+    
+    job.setNumReduceTasks(0);
+    
+    job.setOutputKeyClass(IntWritable.class);
+    job.setOutputValueClass(WeightedVectorWritable.class);
+    
+    FileInputFormat.addInputPath(job, input);
+    FileOutputFormat.setOutputPath(job, output);
+    if (!job.waitForCompletion(true)) {
+      throw new InterruptedException("Cluster Classification Driver Job failed processing " + input);
+    }  	
+  }
+  
   
   private static void classifyClusterMR(Configuration conf, Path input, Path clustersIn, Path output,
       Double clusterClassificationThreshold, boolean emitMostLikely) throws IOException, InterruptedException,
